@@ -1,1 +1,263 @@
-silklaw.github.io
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>해시태그 쉼표 변환기</title>
+    <!-- Tailwind CSS CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        /* 기본 글꼴 설정 */
+        body {
+            font-family: 'Inter', sans-serif;
+        }
+    </style>
+</head>
+<body class="bg-gray-50 flex items-center justify-center min-h-screen p-4">
+
+    <!-- 메인 컨테이너 (좌: 변환기, 우: 기록) -->
+    <div class="flex flex-col lg:flex-row w-full max-w-5xl bg-white rounded-xl shadow-2xl border border-gray-100 overflow-hidden">
+
+        <!-- 1. 좌측: 해시태그 변환기 UI -->
+        <div class="lg:w-2/3 p-8 border-b lg:border-b-0 lg:border-r border-gray-100">
+            <h1 class="text-3xl font-extrabold text-gray-800 mb-2 text-center lg:text-left">
+                해시태그 쉼표 변환기
+            </h1>
+            <p class="text-sm text-gray-500 mb-8 text-center lg:text-left">
+                줄 바꿈된 해시태그 목록을 한 줄의 쉼표(,) 구분 목록으로 변환합니다.
+            </p>
+    
+            <!-- 입력 영역 -->
+            <div class="mb-6">
+                <label for="inputArea" class="block text-sm font-medium text-gray-700 mb-2">
+                    1. 해시태그 목록 붙여넣기
+                </label>
+                <textarea id="inputArea" rows="6" placeholder="여기에 해시태그 목록을 붙여넣으세요. (줄 바꿈 허용)"
+                    class="w-full p-3 border border-gray-300 rounded-lg focus:ring-blue-500 focus:border-blue-500 transition duration-150 text-gray-800 text-sm"></textarea>
+            </div>
+    
+            <!-- 버튼 -->
+            <button id="transformButton"
+                    class="w-full flex items-center justify-center space-x-2 py-3 px-4 border border-transparent rounded-lg shadow-md text-lg font-bold text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-4 focus:ring-blue-500 focus:ring-opacity-50 transition duration-300 transform active:scale-98">
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" viewBox="0 0 20 20" fill="currentColor">
+                    <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm1-11a1 1 0 10-2 0v3.586L7.707 9.293a1 1 0 00-1.414 1.414l3 3a1 1 0 001.414 0l3-3a1 1 0 00-1.414-1.414L11 10.586V7z" clip-rule="evenodd" />
+                </svg>
+                <span>2. 변환 및 결과 복사 🔄</span>
+            </button>
+    
+            <!-- 결과 영역 -->
+            <div class="mt-8">
+                <label for="outputArea" class="block text-sm font-medium text-gray-700 mb-2">
+                    3. 변환된 결과 (자동으로 클립보드에 복사됨)
+                </label>
+                <textarea id="outputArea" rows="4" readonly placeholder="변환된 결과가 여기에 표시됩니다."
+                    class="w-full p-3 bg-gray-100 border border-gray-300 rounded-lg text-gray-800 text-sm focus:outline-none cursor-text"></textarea>
+                
+                <!-- 메시지 박스 -->
+                <div id="messageBox" class="mt-4 hidden p-3 rounded-lg text-sm font-medium" role="alert"></div>
+            </div>
+        </div>
+
+        <!-- 2. 우측: 변환 기록 (History) -->
+        <div class="lg:w-1/3 p-8">
+            <h2 class="text-xl font-bold text-gray-700 mb-4">최근 변환 기록 (History)</h2>
+            <div id="historyList" class="space-y-3">
+                <!-- History items will be inserted here -->
+            </div>
+            <p id="noHistory" class="text-sm text-gray-500 text-center mt-8 hidden">
+                변환 기록이 없습니다.
+            </p>
+        </div>
+        
+    </div>
+
+    <script>
+        const inputArea = document.getElementById('inputArea');
+        const outputArea = document.getElementById('outputArea');
+        const transformButton = document.getElementById('transformButton');
+        const messageBox = document.getElementById('messageBox');
+        const historyList = document.getElementById('historyList');
+        const noHistory = document.getElementById('noHistory');
+
+        const MAX_HISTORY = 5;
+        // conversionHistory 배열에 변환된 텍스트를 저장합니다.
+        let conversionHistory = [];
+
+        /**
+         * 입력된 문자열을 해시태그 없는 쉼표(,) 구분 목록으로 변환합니다.
+         * @param {string} input_text - 원본 텍스트
+         * @returns {string} 변환된 텍스트
+         */
+        function transformText(input_text) {
+            let result = input_text.trim();
+            result = result.replace(/#/g, '');
+            // 줄 바꿈 문자를 쉼표로 대체
+            result = result.replace(/\n/g, ',');
+            // 최종적으로 남아있는 양 끝 공백, 쉼표 및 주변 공백 제거
+            result = result.trim().replace(/,\s*$/, '').trim();
+
+            return result;
+        }
+
+        /**
+         * 메시지 박스를 표시하고 일정 시간 후 숨깁니다.
+         * @param {string} message - 표시할 메시지
+         * @param {string} type - 'success' 또는 'error'
+         */
+        function showMessage(message, type) {
+            messageBox.textContent = message;
+            messageBox.classList.remove('hidden', 'bg-green-100', 'text-green-800', 'bg-red-100', 'text-red-800');
+            
+            if (type === 'success') {
+                messageBox.classList.add('bg-green-100', 'text-green-800');
+            } else {
+                messageBox.classList.add('bg-red-100', 'text-red-800');
+            }
+
+            setTimeout(() => {
+                messageBox.classList.add('hidden');
+            }, 3000);
+        }
+
+        /**
+         * 텍스트를 클립보드에 복사합니다. (최신 API 실패 시 레거시 대체 방식 사용)
+         * @param {string} text - 복사할 텍스트
+         * @param {string} successMessage - 성공 시 표시할 메시지
+         */
+        function copyToClipboard(text, successMessage) {
+            // 1. 최신 navigator.clipboard.writeText() API 시도
+            navigator.clipboard.writeText(text)
+                .then(() => {
+                    showMessage(successMessage, 'success');
+                })
+                .catch(err => {
+                    // 2. 최신 API 실패 시 (보안 정책 등으로 차단된 경우) 레거시 대체 방식 사용
+                    console.error("클립보드 API 차단됨, 레거시 대체 복사 시도:", err);
+                    
+                    // 대체 복사: 임시 textarea를 생성하여 복사 시도
+                    const tempTextArea = document.createElement('textarea');
+                    tempTextArea.value = text;
+                    // 화면 밖으로 이동하여 사용자에게 보이지 않게 처리
+                    tempTextArea.style.position = 'fixed';
+                    tempTextArea.style.top = '0';
+                    tempTextArea.style.left = '0';
+                    tempTextArea.style.opacity = '0';
+                    document.body.appendChild(tempTextArea);
+                    
+                    try {
+                        tempTextArea.select();
+                        tempTextArea.setSelectionRange(0, 99999);
+                        document.execCommand('copy');
+                        
+                        showMessage(successMessage + " (대체 복사 방식)", 'success');
+                    } catch (execErr) {
+                        console.error("최종 복사 실패", execErr);
+                        showMessage(`클립보드 복사 실패. 텍스트를 직접 복사해 주세요.`, 'error');
+                    } finally {
+                        document.body.removeChild(tempTextArea);
+                    }
+                });
+        }
+
+        /**
+         * 변환된 텍스트를 기록에 저장하고 최대 개수를 유지합니다.
+         * @param {string} text - 변환된 텍스트
+         */
+        function saveToHistory(text) {
+            if (!text) return;
+
+            // 새 항목을 배열 맨 앞에 추가
+            conversionHistory.unshift({ 
+                text: text 
+            });
+
+            // 최대 개수 유지 (가장 오래된 항목 제거)
+            if (conversionHistory.length > MAX_HISTORY) {
+                conversionHistory.pop();
+            }
+        }
+
+        /**
+         * 변환 기록 배열을 기반으로 화면에 목록을 렌더링합니다.
+         */
+        function renderHistory() {
+            historyList.innerHTML = ''; // 기존 목록 초기화
+            
+            if (conversionHistory.length === 0) {
+                noHistory.classList.remove('hidden');
+                return;
+            }
+            noHistory.classList.add('hidden');
+
+            conversionHistory.forEach((item, index) => {
+                const historyItem = document.createElement('div');
+                historyItem.className = 'flex items-center justify-between p-3 bg-gray-50 rounded-lg shadow-sm hover:bg-gray-100 transition duration-150 border border-gray-200';
+                
+                // 순차적 번호 (최근 항목이 1번)
+                const itemNumber = index + 1; 
+
+                // 텍스트 표시 (길이가 길면 줄임표 처리)
+                const displayText = item.text.length > 50 
+                                    ? item.text.substring(0, 50) + '...' 
+                                    : item.text;
+
+                historyItem.innerHTML = `
+                    <div class="flex-1 min-w-0 pr-2">
+                        <span class="text-xs font-semibold text-gray-500 mr-2">${itemNumber}.</span>
+                        <p class="text-sm text-gray-700 truncate" title="${item.text}">
+                            ${displayText}
+                        </p>
+                    </div>
+                    <button data-text="${item.text}" class="copy-history-btn flex-shrink-0 ml-2 py-1 px-3 text-xs font-medium text-blue-700 bg-blue-100 rounded-lg hover:bg-blue-200 transition duration-150">
+                        복사하기
+                    </button>
+                `;
+
+                historyList.appendChild(historyItem);
+            });
+
+            // 동적으로 생성된 버튼에 이벤트 리스너 추가
+            document.querySelectorAll('.copy-history-btn').forEach(button => {
+                button.addEventListener('click', (e) => {
+                    // data-text 속성에서 실제 텍스트를 가져옴
+                    const textToCopy = e.currentTarget.getAttribute('data-text');
+                    copyToClipboard(textToCopy, '변환 기록이 클립보드에 복사되었습니다.');
+                });
+            });
+        }
+
+
+        // 메인 변환 버튼 클릭 핸들러
+        transformButton.addEventListener('click', () => {
+            const originalText = inputArea.value;
+
+            if (!originalText.trim()) {
+                showMessage("변환할 내용이 없습니다. 입력 영역에 텍스트를 붙여넣어 주세요.", 'error');
+                outputArea.value = "";
+                return;
+            }
+
+            try {
+                // 1. 내용 변환
+                const transformedText = transformText(originalText);
+                
+                // 2. 변환된 결과를 GUI 텍스트 박스에 표시
+                outputArea.value = transformedText;
+                
+                // 3. 기록에 저장 및 렌더링
+                saveToHistory(transformedText);
+                renderHistory();
+
+                // 4. 변환된 결과를 클립보드에 복사 (메인 출력)
+                copyToClipboard(transformedText, "변환 성공! 결과가 화면에 표시되었으며, 클립보드에 자동 복사되었습니다.");
+
+            } catch (e) {
+                showMessage(`작업 중 오류가 발생했습니다: ${e.message}`, 'error');
+            }
+        });
+
+        // 초기 렌더링 (변환 기록이 없을 때 '변환 기록이 없습니다' 메시지 표시)
+        renderHistory();
+    </script>
+</body>
+</html>
